@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data:;">
+    <meta name="referrer" content="no-referrer">
+    <title>Enterprise Forensic Log Analyzer - Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        dark: '#0f111a',
+                        card: 'rgba(23, 27, 40, 0.75)',
+                        border: 'rgba(255, 255, 255, 0.08)',
+                        accent: '#3b82f6',
+                        critical: '#ef4444',
+                        high: '#f97316',
+                        medium: '#eab308'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #0f111a;
+            color: #f3f4f6;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(239, 68, 68, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+        
+        .glass-card {
+            background: var(--tw-colors-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--tw-colors-border);
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .scroll-custom::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scroll-custom::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .scroll-custom::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        
+        .pulse-red {
+            animation: pulse-red 2s infinite;
+        }
+        
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans">
+    
+    <!-- Navbar -->
+    <nav class="glass-card m-4 px-6 py-4 flex justify-between items-center z-10 sticky top-4">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-500/20 p-2 rounded-lg border border-blue-500/30">
+                <i class="fa-solid fa-shield-halved text-blue-400 text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white">Forensic<span class="text-blue-500">Analyzer</span></h1>
+                <p class="text-xs text-gray-400">Enterprise Dashboard</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-green-400"></div> System Active
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 lg:p-8 pt-0">
+        <!-- Top Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm text-gray-400 font-medium">Total Entries Validated</p>
+                        <h2 id="total-entries" class="text-3xl font-bold text-white mt-1">-</h2>
+                    </div>
+                    <div class="p-3 bg-gray-800/50 rounded-lg"><i class="fa-solid fa-file-lines text-gray-400"></i></div>
+                </div>
+            </div>
+            
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm text-gray-400 font-medium">Unique IPs</p>
+                        <h2 id="unique-ips" class="text-3xl font-bold text-white mt-1">-</h2>
+                    </div>
+                    <div class="p-3 bg-blue-900/30 rounded-lg"><i class="fa-solid fa-network-wired text-blue-400"></i></div>
+                </div>
+            </div>
+            
+            <div class="glass-card p-6 relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-r from-red-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm text-gray-400 font-medium">Total Threat Signatures</p>
+                        <h2 id="total-threats" class="text-3xl font-bold text-white mt-1">-</h2>
+                    </div>
+                    <div id="threat-icon" class="p-3 bg-red-900/30 rounded-lg"><i class="fa-solid fa-bug text-red-400"></i></div>
+                </div>
+            </div>
+            
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm text-gray-400 font-medium">Log Format</p>
+                        <h2 id="log-format" class="text-3xl font-bold text-white mt-1 uppercase">-</h2>
+                    </div>
+                    <div class="p-3bg-purple-900/30 rounded-lg"><i class="fa-solid fa-code text-purple-400"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Attack Vectors Chart -->
+            <div class="glass-card p-6 lg:col-span-2">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-area text-blue-400"></i> Attack Vectors Distribution
+                </h3>
+                <div class="relative h-[300px] w-full">
+                    <canvas id="attackChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Threat Levels Doughnut -->
+            <div class="glass-card p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-shield-virus text-orange-400"></i> Severity Levels
+                </h3>
+                <div class="relative h-[250px] w-full flex items-center justify-center">
+                    <canvas id="severityChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Grid: Datatables -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Top Malicious IPs -->
+            <div class="glass-card p-6 flex flex-col h-[400px]">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-red-400">
+                    <i class="fa-solid fa-skull-crossbones"></i> Malicious/Anomalous Actors (Top IPs)
+                </h3>
+                <div class="flex-1 overflow-y-auto scroll-custom pr-2">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-400 uppercase bg-gray-800/50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 rounded-tl-lg">IP Address</th>
+                                <th class="px-4 py-3">Requests/Hits</th>
+                                <th class="px-4 py-3 rounded-tr-lg">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="malicious-ips-tbody" class="divide-y divide-gray-700/50">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Methods & Status Codes -->
+            <div class="glass-card p-6 flex flex-col h-[400px]">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-traffic-light text-green-400"></i> Request Analytics
+                </h3>
+                <div class="grid grid-cols-2 gap-4 h-full">
+                    <div class="h-full relative">
+                        <canvas id="methodsChart"></canvas>
+                    </div>
+                    <div class="h-full relative">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Configurações globais Chart JS
+        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.font.family = 'Inter';
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15, 17, 26, 0.9)';
+        Chart.defaults.plugins.tooltip.padding = 12;
+        Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.1)';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+
+        async function fetchAnalytics() {
+            try {
+                const response = await fetch('/api/results');
+                if (!response.ok) throw new Error("Data not available. Make sure analytic phase is completed.");
+                const data = await response.json();
+                renderDashboard(data);
+            } catch (error) {
+                console.error("Dashboard fetch error:", error);
+                document.getElementById('status-badge').innerHTML = '<div class="w-2 h-2 rounded-full bg-red-500"></div> API Error/Offline';
+                document.getElementById('status-badge').className = 'px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-2';
+            }
+        }
+
+        function renderDashboard(data) {
+            // 1. Text Metrics
+            document.getElementById('total-entries').innerText = (data.total_entries || 0).toLocaleString();
+            document.getElementById('unique-ips').innerText = (data.unique_ips || 0).toLocaleString();
+            document.getElementById('log-format').innerText = data.detected_format || 'N/A';
+            
+            let totalThreats = 0;
+            if(data.attack_vectors) {
+                totalThreats = Object.values(data.attack_vectors).reduce((a, b) => a + b, 0);
+            }
+            document.getElementById('total-threats').innerText = totalThreats.toLocaleString();
+            
+            if (totalThreats > 0) {
+                document.getElementById('threat-icon').classList.add('pulse-red');
+            }
+
+            // 2. Attack Vectors Chart (Bar)
+            if (data.attack_vectors && Object.keys(data.attack_vectors).length > 0) {
+                const ctxAttack = document.getElementById('attackChart').getContext('2d');
+                const labels = Object.keys(data.attack_vectors);
+                const values = Object.values(data.attack_vectors);
+                
+                new Chart(ctxAttack, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Detected Signatures',
+                            data: values,
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                            borderColor: 'rgb(59, 130, 246)',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                            x: { grid: { display: false } }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            // 3. Severity Doughnut
+            if (data.threat_levels) {
+                const ctxSev = document.getElementById('severityChart').getContext('2d');
+                new Chart(ctxSev, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(data.threat_levels),
+                        datasets: [{
+                            data: Object.values(data.threat_levels),
+                            backgroundColor: [
+                                '#3b82f6', // INFO
+                                '#eab308', // MEDIUM
+                                '#f97316', // HIGH 
+                                '#ef4444'  // CRITICAL
+                            ],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '75%',
+                        plugins: {
+                            legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }
+                        }
+                    }
+                });
+            }
+
+            // 4. Methods & Status Radar/Pie
+            if (data.methods) {
+                new Chart(document.getElementById('methodsChart').getContext('2d'), {
+                    type: 'pie',
+                    data: {
+                        labels: Object.keys(data.methods),
+                        datasets: [{
+                            data: Object.values(data.methods),
+                            backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels:{boxWidth:10,usePointStyle:true} } } }
+                });
+            }
+
+            if (data.status_codes) {
+                new Chart(document.getElementById('statusChart').getContext('2d'), {
+                    type: 'pie',
+                    data: {
+                        labels: Object.keys(data.status_codes),
+                        datasets: [{
+                            data: Object.values(data.status_codes),
+                            backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels:{boxWidth:10,usePointStyle:true} } } }
+                });
+            }
+
+            // 5. Populate Suspicious IPs table
+            const tbody = document.getElementById('malicious-ips-tbody');
+            if (data.anomalies && data.anomalies.suspicious_ips) {
+                data.anomalies.suspicious_ips.forEach((item) => {
+                    const ip = item[0];
+                    const count = item[1];
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-800/30 transition-colors';
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 font-mono text-blue-400">${ip}</td>
+                        <td class="px-4 py-3">${count.toLocaleString()}</td>
+                        <td class="px-4 py-3"><span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-md text-xs">Anômalo (Ag/Volume)</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            
+            // Integrate maliciou IPs if Intel existed
+            if (data.threat_intel && data.malicious_ips) {
+                data.malicious_ips.forEach((ip) => {
+                    const info = data.threat_intel[ip];
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-800/30 transition-colors';
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 font-mono text-red-400">${ip} <span class="text-xs text-gray-500 ml-1">(${info.country || 'N/A'})</span></td>
+                        <td class="px-4 py-3">-</td>
+                        <td class="px-4 py-3"><span class="px-2 py-1 bg-red-500/20 text-red-400 rounded-md text-xs">Ameaça Confirmada (${info.sources?.[0] || 'Intel'})</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', fetchAnalytics);
+    </script>
+</body>
+</html>
