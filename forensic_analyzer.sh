@@ -379,56 +379,56 @@ analyze_temporal_patterns() {
 # ====================================================================================================
 
 detect_threats() {
-    print_section "DETECÇÃO DE AMEAÇAS"
+    print_section "DETECÇÃO DE AMEAÇAS (SINGLE-PASS STREAMING)"
     
-    # SQL Injection
-    local sqli=$(grep -Eic "$SQL_PATTERNS" "$LOG_FILE" 2>/dev/null || echo "0")
+    # Processamento em pass único via awk para eliminar overhead de I/O em discos para arquivos de 10GB+
+    awk -v out="$EVIDENCE_DIR" -v sql="$SQL_PATTERNS" -v xss="$XSS_PATTERNS" -v lfi="$LFI_PATTERNS" \
+        -v rce="$RCE_PATTERNS" -v brute="$BRUTE_PATTERNS" -v trav="$TRAVERSAL_PATTERNS" \
+        -v sens="/($SENSITIVE_PATHS)[/?]" '
+    BEGIN {
+        sql=tolower(sql); xss=tolower(xss); lfi=tolower(lfi); rce=tolower(rce); 
+        brute=tolower(brute); trav=tolower(trav); sens=tolower(sens);
+    }
+    {
+        lc = tolower($0)
+        if (match(lc, sql)) { sqli++; if (sqli <= 50) print $0 > (out "/sqli_attacks.txt") }
+        if (match(lc, xss)) { xssc++; if (xssc <= 50) print $0 > (out "/xss_attacks.txt") }
+        if (match(lc, lfi)) { lfic++; if (lfic <= 50) print $0 > (out "/lfi_attacks.txt") }
+        if (match(lc, rce)) { rcec++; if (rcec <= 50) print $0 > (out "/rce_attacks.txt") }
+        if (match(lc, brute)) { brutec++; if (brutec <= 50) print $0 > (out "/brute_force.txt") }
+        if (match(lc, trav)) travc++
+        if (match(lc, sens)) sensc++
+    }
+    END {
+        print sqli+0, xssc+0, lfic+0, rcec+0, brutec+0, travc+0, sensc+0
+    }
+    ' "$LOG_FILE" > "${STATS_DIR}/threats_summary.tmp" 2>/dev/null
+    
+    read -r sqli xss lfi rce brute traversal sensitive < "${STATS_DIR}/threats_summary.tmp"
+
     if [[ $sqli -gt 0 ]]; then
         log_critical "SQL Injection: ${sqli} ocorrências"
         ATTACK_VECTORS["SQLi"]=$sqli
-        grep -Ei "$SQL_PATTERNS" "$LOG_FILE" 2>/dev/null | head -50 > "${EVIDENCE_DIR}/sqli_attacks.txt"
     fi
-    
-    # XSS
-    local xss=$(grep -Eic "$XSS_PATTERNS" "$LOG_FILE" 2>/dev/null || echo "0")
     if [[ $xss -gt 0 ]]; then
         log_high "XSS: ${xss} ocorrências"
         ATTACK_VECTORS["XSS"]=$xss
-        grep -Ei "$XSS_PATTERNS" "$LOG_FILE" 2>/dev/null | head -50 > "${EVIDENCE_DIR}/xss_attacks.txt"
     fi
-    
-    # LFI
-    local lfi=$(grep -Eic "$LFI_PATTERNS" "$LOG_FILE" 2>/dev/null || echo "0")
     if [[ $lfi -gt 0 ]]; then
         log_high "LFI/RFI: ${lfi} ocorrências"
         ATTACK_VECTORS["LFI"]=$lfi
-        grep -Ei "$LFI_PATTERNS" "$LOG_FILE" 2>/dev/null | head -50 > "${EVIDENCE_DIR}/lfi_attacks.txt"
     fi
-    
-    # RCE
-    local rce=$(grep -Eic "$RCE_PATTERNS" "$LOG_FILE" 2>/dev/null || echo "0")
     if [[ $rce -gt 0 ]]; then
         log_critical "RCE: ${rce} ocorrências"
         ATTACK_VECTORS["RCE"]=$rce
-        grep -Ei "$RCE_PATTERNS" "$LOG_FILE" 2>/dev/null | head -50 > "${EVIDENCE_DIR}/rce_attacks.txt"
     fi
-    
-    # Brute Force
-    local brute=$(grep -Eic "$BRUTE_PATTERNS" "$LOG_FILE" 2>/dev/null || echo "0")
     if [[ $brute -gt 0 ]]; then
         log_high "Brute Force: ${brute} ocorrências"
         ATTACK_VECTORS["BRUTE_FORCE"]=$brute
-        grep -Ei "$BRUTE_PATTERNS" "$LOG_FILE" 2>/dev/null | head -50 > "${EVIDENCE_DIR}/brute_force.txt"
     fi
-    
-    # Path Traversal
-    local traversal=$(grep -Eic "$TRAVERSAL_PATTERNS" "$LOG_FILE" 2>/dev/null || echo "0")
     if [[ $traversal -gt 0 ]]; then
         log_high "Path Traversal: ${traversal} tentativas"
     fi
-    
-    # Sensitive Paths
-    local sensitive=$(grep -Eic "/($SENSITIVE_PATHS)[/?]" "$LOG_FILE" 2>/dev/null || echo "0")
     if [[ $sensitive -gt 0 ]]; then
         log_medium "Acessos a paths sensíveis: ${sensitive}"
         ATTACK_VECTORS["SENSITIVE"]=$sensitive
