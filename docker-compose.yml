@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  forensic-analyzer:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: forensic-analyzer-enterprise:latest
+    container_name: forensic_analyzer_ui
+    ports:
+      # Expõe a porta 8080 do Dashboard Analytics para a rede local (Host)
+      - "8080:8080"
+    volumes:
+      # Monta o diretório de logs da máquina nativa para dentro do container
+      - ./logs:/logs:ro
+      # Volume para a saida das respostas e output da API UI poder compartilhar caching
+      - ./forensic_output:/app/forensic_output
+    # Security parameters start
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    # Security parameters end
+    # Ponto de acesso do serviço containerizado atrelado ao comando --serve
+    command: ["/logs/target.log", "--serve", "--port", "8080"]
+    restart: unless-stopped
